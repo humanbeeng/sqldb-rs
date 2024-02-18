@@ -6,7 +6,7 @@ struct Location {
     line: u32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 struct Cursor {
     pos: u32,
     loc: Location,
@@ -87,15 +87,20 @@ fn lex(source: String) -> Result<Vec<Token>, String> {
     };
 
     'outer: while cur.pos < source.len() as u32 {
-        let lexers = Vec::from([lex_string, lex_numeric, lex_symbols, lex_keyword]);
+        let lexers = Vec::from([lex_string, lex_symbols, lex_keyword, lex_numeric]);
 
         for l in lexers {
-            if let Ok(token) = l(source.clone(), &mut cur) {
-                if token.token_kind != TokenKind::Nil {
-                    println!("Pushing token: {:?}", token);
-                    tokens.push(token);
+            match l(source.clone(), &mut cur) {
+                Ok(token) => {
+                    if token.token_kind != TokenKind::Nil {
+                        println!("Pushing token: {:?} \n, Cur.pos: {}", token, cur.pos);
+                        tokens.push(token);
+                    }
+                    continue 'outer;
                 }
-                continue 'outer;
+                Err(err) => {
+                    println!("Err: {}", err);
+                }
             }
         }
 
@@ -105,22 +110,27 @@ fn lex(source: String) -> Result<Vec<Token>, String> {
         }
 
         return Err(format!(
-            "Unable to lex {}, at {}:{}",
+            "Unable to lex '{}', at {}:{}",
             hint, cur.pos, cur.loc.col
         ));
     }
     Ok(tokens)
 }
+
 fn lex_numeric(source: String, cur: &mut Cursor) -> Result<Token, String> {
     let old_cur = cur.clone();
 
     while (cur.pos as usize) < source.len() {
-        let curr_char = source.chars().nth(cur.pos as usize).unwrap();
+        if let Some(curr_char) = source.chars().nth(cur.pos as usize) {
+            println!("Curr char: [{}]", curr_char);
 
-        if !curr_char.is_ascii_digit() {
-            return Err("Not a digit".to_string());
+            if !curr_char.is_ascii_digit() {
+                if old_cur.pos == cur.pos {
+                    return Err("Not a digit".to_string());
+                }
+                break;
+            }
         }
-
         cur.pos += 1;
         cur.loc.col += 1;
     }
@@ -128,7 +138,7 @@ fn lex_numeric(source: String, cur: &mut Cursor) -> Result<Token, String> {
     let tok = Token {
         literal: source[old_cur.pos as usize..cur.pos as usize].to_string(),
         token_kind: TokenKind::Numeric,
-        loc: cur.loc.clone(),
+        loc: old_cur.loc,
     };
 
     Ok(tok)
@@ -140,45 +150,48 @@ fn lex_string(source: String, cursor: &mut Cursor) -> Result<Token, String> {
 
 fn lex_char_delimited(source: String, cur: &mut Cursor, delimiter: char) -> Result<Token, String> {
     let old_cur = cur.clone();
+    let mut value = String::new();
+
     if source[cur.pos as usize..].len() == 0 {
         return Err(String::from("Empty string"));
     }
 
     let curr_char = source.chars().nth(cur.pos as usize).unwrap();
-
     if curr_char != delimiter {
         return Err(String::from("Invalid string literal"));
     }
-
-    let mut value = String::new();
 
     cur.pos += 1;
     cur.loc.col += 1;
 
     while (cur.pos as usize) < source.len() {
-        if let Some(curr_char) = source.chars().nth(cur.pos as usize) {
-            let next_pos = cur.pos as usize + 1;
+        let curr_char = source.chars().nth(cur.pos as usize).unwrap();
 
-            if curr_char == delimiter {
-                if let Some(next_char) = source.chars().nth(next_pos) {
-                    if (next_pos) >= source.len() || next_char != delimiter {
-                        return Ok(Token {
-                            literal: source[(old_cur.pos as usize)..(cur.pos as usize)].to_string(),
-                            token_kind: TokenKind::String,
-                            loc: cur.loc.clone(),
-                        });
-                    }
-                    value.push(delimiter);
+        let next_pos = cur.pos as usize + 1;
+        if curr_char == delimiter {
+            if let Some(next_char) = source.chars().nth(next_pos) {
+                if (next_pos) >= source.len() || next_char != delimiter {
                     cur.pos += 1;
                     cur.loc.col += 1;
-                } else {
+
                     return Ok(Token {
-                        literal: source[(old_cur.pos as usize)..((cur.pos + 1) as usize)]
-                            .to_string(),
+                        literal: source[(old_cur.pos as usize)..(cur.pos as usize)].to_string(),
                         token_kind: TokenKind::String,
-                        loc: cur.loc.clone(),
+                        loc: old_cur.loc,
                     });
                 }
+
+                cur.pos += 1;
+                cur.loc.col += 1;
+                value.push(delimiter);
+            } else {
+                cur.pos += 1;
+                cur.loc.col += 1;
+                return Ok(Token {
+                    literal: source[(old_cur.pos as usize)..(cur.pos as usize)].to_string(),
+                    token_kind: TokenKind::String,
+                    loc: old_cur.loc,
+                });
             }
         }
 
@@ -191,6 +204,7 @@ fn lex_char_delimited(source: String, cur: &mut Cursor, delimiter: char) -> Resu
 }
 
 fn lex_keyword(source: String, cursor_in: &mut Cursor) -> Result<Token, String> {
+    let cursor = cursor_in.clone();
     let keywords = Vec::from([
         Keyword::Select.to_string(),
         Keyword::Insert.to_string(),
@@ -204,20 +218,25 @@ fn lex_keyword(source: String, cursor_in: &mut Cursor) -> Result<Token, String> 
         Keyword::Table.to_string(),
     ]);
 
-    let keyword_match = longest_match(source, cursor_in.clone(), keywords);
+    let keyword_match = longest_match(source, cursor, keywords);
 
     if keyword_match.is_empty() {
         return Err(String::from("No keyword found"));
     }
 
+    let tok = Token {
+        token_kind: TokenKind::Keyword,
+        literal: keyword_match.clone(),
+        loc: Location {
+            col: cursor_in.loc.col,
+            line: cursor_in.loc.line,
+        },
+    };
+
     cursor_in.pos += keyword_match.len() as u32;
     cursor_in.loc.col += keyword_match.len() as u32;
 
-    Ok(Token {
-        token_kind: TokenKind::Keyword,
-        literal: keyword_match,
-        loc: cursor_in.clone().loc,
-    })
+    Ok(tok)
 }
 
 fn longest_match(source: String, cursor_in: Cursor, options: Vec<String>) -> String {
@@ -274,6 +293,7 @@ fn lex_symbols(source: String, cursor_in: &mut Cursor) -> Result<Token, String> 
                 cursor_cpy.loc.col = 0;
             }
             ' ' => {
+                println!("Whitespace found");
                 cursor_in.pos = cursor_cpy.pos;
                 cursor_in.loc.col = cursor_cpy.loc.col;
                 return Ok(Token {
@@ -315,7 +335,7 @@ fn lex_symbols(source: String, cursor_in: &mut Cursor) -> Result<Token, String> 
 }
 
 fn main() {
-    let lex_res = lex(String::from("select from 'lamo'"));
+    let lex_res = lex(String::from("select from 'la''mo'"));
     if let Ok(res) = lex_res {
         println!("Result {:?}", res);
     }
@@ -414,24 +434,80 @@ mod lexer_test {
 
     #[test]
     fn test_lex() {
-        let tests = HashMap::from([(
-            String::from("select from 'lmao'"),
-            vec![
-                Token {
-                    literal: String::from("select"),
-                    token_kind: TokenKind::Keyword,
-                    loc: Location { col: 6, line: 0 },
-                },
-                Token {
-                    literal: String::from("from"),
-                    token_kind: TokenKind::Keyword,
-                    loc: Location { col: 11, line: 0 },
-                },
-            ],
-        )]);
+        let tests = HashMap::from([
+            (
+                String::from("select from 'lmao'"),
+                vec![
+                    Token {
+                        literal: String::from("select"),
+                        token_kind: TokenKind::Keyword,
+                        loc: Location { col: 0, line: 0 },
+                    },
+                    Token {
+                        literal: String::from("from"),
+                        token_kind: TokenKind::Keyword,
+                        loc: Location { col: 7, line: 0 },
+                    },
+                    Token {
+                        literal: String::from("'lmao'"),
+                        token_kind: TokenKind::String,
+                        loc: Location { col: 12, line: 0 },
+                    },
+                ],
+            ),
+            (
+                String::from("123 'xx''d' values"),
+                vec![
+                    Token {
+                        literal: String::from("123"),
+                        token_kind: TokenKind::Numeric,
+                        loc: Location { col: 0, line: 0 },
+                    },
+                    Token {
+                        literal: String::from("'xx''d'"),
+                        token_kind: TokenKind::String,
+                        loc: Location { col: 4, line: 0 },
+                    },
+                    Token {
+                        literal: String::from("values"),
+                        token_kind: TokenKind::Keyword,
+                        loc: Location { col: 12, line: 0 },
+                    },
+                ],
+            ),
+            (
+                String::from("'lmao' insert into values"),
+                vec![
+                    Token {
+                        literal: String::from("'lmao'"),
+                        token_kind: TokenKind::String,
+                        loc: Location { col: 0, line: 0 },
+                    },
+                    Token {
+                        literal: String::from("insert"),
+                        token_kind: TokenKind::Keyword,
+                        loc: Location { col: 7, line: 0 },
+                    },
+                    Token {
+                        literal: String::from("into"),
+                        token_kind: TokenKind::Keyword,
+                        loc: Location { col: 14, line: 0 },
+                    },
+                    Token {
+                        literal: String::from("values"),
+                        token_kind: TokenKind::Keyword,
+                        loc: Location { col: 19, line: 0 },
+                    },
+                ],
+            ),
+        ]);
 
         for t in tests {
+            println!("Testing source: {}", t.0);
             let lex_res = lex(t.0);
+            if lex_res.is_err() {
+                println!("{}", lex_res.clone().unwrap_err());
+            }
             assert!(lex_res.is_ok());
 
             let l = lex_res.unwrap().clone();
@@ -440,6 +516,7 @@ mod lexer_test {
             for (i, tok) in l.iter().enumerate() {
                 assert_eq!(t.1.index(i), tok);
             }
+            println!("\n\n---------\n\n");
         }
     }
 }
