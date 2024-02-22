@@ -2,8 +2,8 @@ use core::fmt;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Location {
-    col: u32,
-    line: u32,
+    pub col: u32,
+    pub line: u32,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -74,12 +74,12 @@ impl fmt::Display for Keyword {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
-    literal: String,
-    token_kind: TokenKind,
-    loc: Location,
+    pub literal: String,
+    pub token_kind: TokenKind,
+    pub loc: Location,
 }
 
-pub fn lex(source: String) -> Result<Vec<Token>, String> {
+pub fn lex(source: &String) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::new();
     let mut cur = Cursor {
         loc: Location { col: 0, line: 0 },
@@ -552,7 +552,7 @@ mod lexer_test {
 
         for t in tests {
             println!("Testing source: {}", t.0);
-            let lex_res = lex(t.0);
+            let lex_res = lex(&t.0);
             if lex_res.is_err() {
                 println!("{}", lex_res.clone().unwrap_err());
             }
