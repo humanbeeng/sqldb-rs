@@ -30,8 +30,8 @@ pub struct ColDefinition {
 
 #[derive(Debug)]
 pub struct Expression {
-    literal: Token,
-    kind: ExpressionKind,
+    pub literal: Token,
+    pub kind: ExpressionKind,
 }
 
 #[derive(Debug)]
