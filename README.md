@@ -10,6 +10,7 @@ Supports.
 - INSERT
 - CREATE
 
+---
 
 ##### Todo:
 - [x] Lexer
