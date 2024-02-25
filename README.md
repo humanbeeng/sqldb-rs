@@ -4,9 +4,9 @@
 Memory backed SQL database. 
 
 TODO:
-- [ ] Lexer
+- [x] Lexer
 - [ ] Parser
-  - [ ] Select
+  - [x] Select
   - [ ] Insert
   - [ ] Create
 - [ ] In memory backend
