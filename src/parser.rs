@@ -11,16 +11,12 @@ pub fn parse(source: String) -> Result<Ast, String> {
         Err(e) => return Err(e),
     };
 
-    println!("Tokens: {:?}", tokens);
-
     let mut cursor = 0;
     let mut ast = Ast {
         statements: Vec::new(),
     };
-    println!("Len of tokens: {}", tokens.len());
 
     while cursor < tokens.len() {
-        println!("Cursor: {}", cursor);
         let (statement, new_cursor) = match parse_statement(
             &tokens,
             cursor,
@@ -72,19 +68,12 @@ fn parse_statement(
     cursor_in: usize,
     delimiter: Token,
 ) -> Result<(Statement, usize), ()> {
-    let semicolon = Token {
-        literal: Symbol::Semicolon.to_string(),
-        token_kind: TokenKind::Symbol,
-        loc: Location::new(),
-    };
-
-    match parse_select(&tokens, cursor_in, &semicolon) {
+    match parse_select(&tokens, cursor_in, &delimiter) {
         Ok((select, new_cursor)) => {
             return Ok((select, new_cursor));
         }
         Err(_) => {}
     };
-
     Err(())
 }
 
@@ -120,7 +109,6 @@ fn parse_expressions(
 ) -> Result<(Vec<Expression>, usize), ()> {
     let mut cursor = cursor_in;
     let mut expressions: Vec<Expression> = Vec::new();
-    println!("Parse expression called");
 
     'outer: loop {
         if cursor >= tokens.len() {
@@ -133,8 +121,6 @@ fn parse_expressions(
             }
             Some(token) => token.to_owned(),
         };
-
-        println!("Current token: {:?}", current_token);
 
         for delimiter in delimiters {
             if delimiter.literal == current_token.literal {
@@ -219,7 +205,6 @@ fn parse_select(
         Ok((expressions, new_cursor)) => (expressions, new_cursor),
         Err(_) => return Err(()),
     };
-    println!("Expressions: {:?}", expressions);
 
     cursor = new_cursor;
 
