@@ -6,6 +6,12 @@ pub struct Location {
     pub line: u32,
 }
 
+impl Location {
+    pub fn new() -> Location {
+        Location { col: 0, line: 0 }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Cursor {
     pos: u32,
@@ -79,6 +85,16 @@ pub struct Token {
     pub loc: Location,
 }
 
+impl Token {
+    pub fn nil() -> Token {
+        Token {
+            literal: String::new(),
+            token_kind: TokenKind::Nil,
+            loc: Location::new(),
+        }
+    }
+}
+
 pub fn lex(source: &String) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::new();
     let mut cur = Cursor {
@@ -103,8 +119,8 @@ pub fn lex(source: &String) -> Result<Vec<Token>, String> {
                     }
                     continue 'outer;
                 }
-                Err(err) => {
-                    println!("Err: {}", err);
+                Err(_) => {
+                    // println!("Err: {}", err);
                 }
             }
         }
