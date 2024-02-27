@@ -15,8 +15,8 @@ Supports.
 
 ##### Todo:
 - [x] Lexer
-- [ ] Parser
+- [x] Parser
   - [x] Select
   - [x] Insert
-  - [ ] Create
+  - [x] Create
 - [ ] In memory backend
