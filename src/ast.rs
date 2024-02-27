@@ -24,8 +24,8 @@ pub enum Statement {
 
 #[derive(Debug)]
 pub struct ColDefinition {
-    name: Token,
-    data_type: Token,
+    pub name: Token,
+    pub data_type: Token,
 }
 
 #[derive(Debug)]

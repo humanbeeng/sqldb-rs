@@ -1,6 +1,6 @@
 use std::vec;
 
-use crate::ast::{Expression, ExpressionKind};
+use crate::ast::{ColDefinition, Expression, ExpressionKind};
 use crate::lexer::{Keyword, Location, Symbol, TokenKind};
 use crate::{ast::Ast, lexer::lex};
 use crate::{ast::Statement, lexer::Token};
@@ -81,6 +81,14 @@ fn parse_statement(
         }
         Err(_) => {}
     }
+
+    match parse_create(&tokens, cursor_in, &delimiter) {
+        Ok((select, new_cursor)) => {
+            return Ok((select, new_cursor));
+        }
+        Err(_) => {}
+    }
+
     Err(())
 }
 
@@ -354,6 +362,162 @@ fn parse_insert(
     Ok((Statement::Insert { table, values }, cursor))
 }
 
+fn parse_create(
+    tokens: &Vec<Token>,
+    cursor_in: usize,
+    delimiter: &Token,
+) -> Result<(Statement, usize), ()> {
+    let mut cursor = cursor_in;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Keyword::Create.to_string(),
+            token_kind: TokenKind::Keyword,
+            loc: Location::new(),
+        },
+    ) {
+        return Err(());
+    }
+    cursor += 1;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Keyword::Table.to_string(),
+            token_kind: TokenKind::Keyword,
+            loc: Location::new(),
+        },
+    ) {
+        help_message(tokens, cursor, String::from("Expected TABLE"));
+        return Err(());
+    }
+    cursor += 1;
+
+    let (table, new_cursor) = match parse_token(tokens, cursor, TokenKind::Identifier) {
+        Ok((table, new_cursor)) => (table, new_cursor),
+        Err(_) => {
+            help_message(tokens, cursor, String::from("Expected table name"));
+            return Err(());
+        }
+    };
+
+    cursor = new_cursor;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Symbol::LeftParen.to_string(),
+            token_kind: TokenKind::Symbol,
+            loc: Location::new(),
+        },
+    ) {
+        help_message(tokens, cursor, String::from("Expected LEFTPAREN"));
+        return Err(());
+    }
+    cursor += 1;
+
+    let (cols, new_cursor) = match parse_column_defs(
+        tokens,
+        cursor,
+        &Token {
+            literal: Symbol::RightParen.to_string(),
+            token_kind: TokenKind::Symbol,
+            loc: Location::new(),
+        },
+    ) {
+        Ok((col_defs, new_cursor)) => (col_defs, new_cursor),
+        Err(_) => {
+            return Err(());
+        }
+    };
+    cursor = new_cursor;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Symbol::RightParen.to_string(),
+            token_kind: TokenKind::Symbol,
+            loc: Location::new(),
+        },
+    ) {
+        help_message(tokens, cursor, String::from("Expected RIGHTPAREN"));
+        return Err(());
+    }
+    cursor += 1;
+
+    let create = Statement::Create { name: table, cols };
+    Ok((create, cursor))
+}
+
+fn parse_column_defs(
+    tokens: &Vec<Token>,
+    cursor_in: usize,
+    delimiter: &Token,
+) -> Result<(Vec<ColDefinition>, usize), ()> {
+    let mut col_defs = Vec::new();
+    let mut cursor = cursor_in;
+
+    loop {
+        if cursor >= tokens.len() {
+            break;
+        }
+
+        let current = tokens.get(cursor).unwrap();
+
+        if current.literal == delimiter.literal {
+            break;
+        }
+
+        if col_defs.len() > 0 {
+            if !expect_token(
+                tokens,
+                cursor,
+                Token {
+                    literal: Symbol::Comma.to_string(),
+                    token_kind: TokenKind::Symbol,
+                    loc: Location::new(),
+                },
+            ) {
+                help_message(tokens, cursor, String::from("Expected comma"));
+                return Err(());
+            }
+            cursor += 1;
+        }
+
+        let (col_name, new_cursor) = match parse_token(tokens, cursor, TokenKind::Identifier) {
+            Ok((col_name, new_cursor)) => (col_name, new_cursor),
+            Err(_) => {
+                help_message(tokens, cursor, String::from("Expected column name"));
+                return Err(());
+            }
+        };
+        cursor = new_cursor;
+
+        let (col_type, new_cursor) = match parse_token(tokens, cursor, TokenKind::Keyword) {
+            Ok((col_type, new_cursor)) => (col_type, new_cursor),
+            Err(_) => {
+                help_message(tokens, cursor, String::from("Expected column type"));
+                return Err(());
+            }
+        };
+        cursor = new_cursor;
+
+        let col_def = ColDefinition {
+            name: col_name,
+            data_type: col_type,
+        };
+
+        col_defs.push(col_def);
+    }
+
+    Ok((col_defs, cursor))
+}
+
 fn help_message(tokens: &Vec<Token>, cursor: usize, msg: String) {
     if cursor < tokens.len() {
         let token = tokens.get(cursor).unwrap();
@@ -375,10 +539,8 @@ fn help_message(tokens: &Vec<Token>, cursor: usize, msg: String) {
 
 fn expect_token(tokens: &Vec<Token>, cursor: usize, token: Token) -> bool {
     if let Some(t) = tokens.get(cursor) {
-        println!("Current token: {:?}", t);
         *t.literal == token.literal
     } else {
-        println!("False");
         false
     }
 }
