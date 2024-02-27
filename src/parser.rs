@@ -74,6 +74,13 @@ fn parse_statement(
         }
         Err(_) => {}
     };
+
+    match parse_insert(&tokens, cursor_in, &delimiter) {
+        Ok((select, new_cursor)) => {
+            return Ok((select, new_cursor));
+        }
+        Err(_) => {}
+    }
     Err(())
 }
 
@@ -242,6 +249,111 @@ fn parse_select(
     ))
 }
 
+fn parse_insert(
+    tokens: &Vec<Token>,
+    cursor_in: usize,
+    delimiter: &Token,
+) -> Result<(Statement, usize), ()> {
+    let mut cursor = cursor_in;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Keyword::Insert.to_string(),
+            token_kind: TokenKind::Keyword,
+            loc: Location::new(),
+        },
+    ) {
+        return Err(());
+    }
+    cursor += 1;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Keyword::Into.to_string(),
+            token_kind: TokenKind::Keyword,
+            loc: Location::new(),
+        },
+    ) {
+        help_message(tokens, cursor, String::from("Expected INTO"));
+        return Err(());
+    }
+    cursor += 1;
+
+    let (table, new_cursor) = match parse_token(tokens, cursor, TokenKind::Identifier) {
+        Ok((table, new_cursor)) => (table, new_cursor),
+        Err(_) => {
+            help_message(tokens, cursor, String::from("Expected table name"));
+            return Err(());
+        }
+    };
+    cursor = new_cursor;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Keyword::Values.to_string(),
+            token_kind: TokenKind::Keyword,
+            loc: Location::new(),
+        },
+    ) {
+        help_message(tokens, cursor, String::from("Expected VALUES"));
+        return Err(());
+    }
+    cursor += 1;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Symbol::LeftParen.to_string(),
+            token_kind: TokenKind::Symbol,
+            loc: Location::new(),
+        },
+    ) {
+        help_message(tokens, cursor, String::from("Expected LPAREN"));
+        return Err(());
+    }
+    cursor += 1;
+
+    let (values, new_cursor) = match parse_expressions(
+        &tokens,
+        cursor,
+        &Vec::from([Token {
+            literal: Symbol::RightParen.to_string(),
+            token_kind: TokenKind::Symbol,
+            loc: Location::new(),
+        }]),
+    ) {
+        Ok((expressions, new_cursor)) => (expressions, new_cursor),
+        Err(_) => {
+            return Err(());
+        }
+    };
+
+    cursor = new_cursor;
+
+    if !expect_token(
+        tokens,
+        cursor,
+        Token {
+            literal: Symbol::RightParen.to_string(),
+            token_kind: TokenKind::Symbol,
+            loc: Location::new(),
+        },
+    ) {
+        help_message(tokens, cursor, String::from("Expected RIGHTPAREN"));
+        return Err(());
+    }
+    cursor += 1;
+
+    Ok((Statement::Insert { table, values }, cursor))
+}
+
 fn help_message(tokens: &Vec<Token>, cursor: usize, msg: String) {
     if cursor < tokens.len() {
         let token = tokens.get(cursor).unwrap();
@@ -263,8 +375,10 @@ fn help_message(tokens: &Vec<Token>, cursor: usize, msg: String) {
 
 fn expect_token(tokens: &Vec<Token>, cursor: usize, token: Token) -> bool {
     if let Some(t) = tokens.get(cursor) {
+        println!("Current token: {:?}", t);
         *t.literal == token.literal
     } else {
+        println!("False");
         false
     }
 }

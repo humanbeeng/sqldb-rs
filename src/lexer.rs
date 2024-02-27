@@ -296,60 +296,64 @@ fn longest_match(source: &String, cursor_in: Cursor, options: Vec<String>) -> St
             break;
         }
     }
-
     str_match
 }
 
 fn lex_symbols(source: &String, cursor_in: &mut Cursor) -> Result<Token, String> {
-    if let Some(c) = source.chars().nth(cursor_in.pos as usize) {
-        let mut cursor_cpy = cursor_in.clone();
-        cursor_cpy.pos += 1;
-        cursor_cpy.loc.col += 1;
-
-        match c {
-            '\n' => {
-                cursor_cpy.loc.line += 1;
-                cursor_cpy.loc.col = 0;
-            }
-            ' ' => {
-                cursor_in.pos = cursor_cpy.pos;
-                cursor_in.loc.col = cursor_cpy.loc.col;
-                return Ok(Token {
-                    literal: c.to_string(),
-                    token_kind: TokenKind::Nil,
-                    loc: cursor_cpy.loc,
-                });
-            }
-            _ => {}
+    let c = match source.chars().nth(cursor_in.pos as usize) {
+        Some(c) => c,
+        None => {
+            return Err(String::from("not found"));
         }
+    };
 
-        let symbols = Vec::from([
-            Symbol::Semicolon.to_string(),
-            Symbol::Asterisk.to_string(),
-            Symbol::LeftParen.to_string(),
-            Symbol::RightParen.to_string(),
-            Symbol::Comma.to_string(),
-        ]);
+    let mut cursor = cursor_in.clone();
+    let loc = cursor_in.clone().loc;
+    cursor.pos += 1;
+    cursor.loc.col += 1;
 
-        let sym_match = longest_match(source, cursor_in.clone(), symbols);
-
-        if sym_match.is_empty() {
-            return Err(String::from("Not found"));
+    match c {
+        '\n' => {
+            cursor.loc.line += 1;
+            cursor.loc.col = 0;
         }
-
-        cursor_cpy.pos += sym_match.len() as u32;
-        cursor_cpy.loc.col += sym_match.len() as u32;
-
-        cursor_in.pos = cursor_cpy.pos;
-        cursor_in.loc.col = cursor_cpy.loc.col;
-
-        return Ok(Token {
-            literal: sym_match,
-            token_kind: TokenKind::Symbol,
-            loc: cursor_in.clone().loc,
-        });
+        ' ' => {
+            cursor_in.pos = cursor.pos;
+            cursor_in.loc.col = cursor.loc.col;
+            return Ok(Token {
+                literal: c.to_string(),
+                token_kind: TokenKind::Nil,
+                loc: cursor.loc,
+            });
+        }
+        _ => {}
     }
-    Err(String::from("Not found"))
+
+    let symbols = Vec::from([
+        Symbol::Asterisk.to_string(),
+        Symbol::LeftParen.to_string(),
+        Symbol::RightParen.to_string(),
+        Symbol::Semicolon.to_string(),
+        Symbol::Comma.to_string(),
+    ]);
+
+    let sym_match = longest_match(source, cursor_in.clone(), symbols);
+
+    if sym_match.is_empty() {
+        return Err(String::from("Not found"));
+    }
+
+    cursor.pos += sym_match.len() as u32 - 1;
+    cursor.loc.col += sym_match.len() as u32 - 1;
+
+    cursor_in.pos = cursor.pos;
+    cursor_in.loc.col = cursor.loc.col;
+
+    Ok(Token {
+        literal: sym_match,
+        token_kind: TokenKind::Symbol,
+        loc,
+    })
 }
 
 fn lex_identifier(source: &String, cursor_in: &mut Cursor) -> Result<Token, String> {
@@ -535,7 +539,7 @@ mod lexer_test {
                 ],
             ),
             (
-                String::from("'lmao' insert into values ram"),
+                String::from("'lmao' insert into values ram);"),
                 vec![
                     Token {
                         literal: String::from("'lmao'"),
@@ -561,6 +565,16 @@ mod lexer_test {
                         literal: String::from("ram"),
                         token_kind: TokenKind::Identifier,
                         loc: Location { col: 26, line: 0 },
+                    },
+                    Token {
+                        literal: String::from(")"),
+                        token_kind: TokenKind::Symbol,
+                        loc: Location { col: 29, line: 0 },
+                    },
+                    Token {
+                        literal: String::from(";"),
+                        token_kind: TokenKind::Symbol,
+                        loc: Location { col: 30, line: 0 },
                     },
                 ],
             ),
