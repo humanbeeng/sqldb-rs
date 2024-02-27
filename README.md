@@ -16,6 +16,6 @@ Supports.
 - [x] Lexer
 - [ ] Parser
   - [x] Select
-  - [ ] Insert
+  - [x] Insert
   - [ ] Create
 - [ ] In memory backend
