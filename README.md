@@ -1,6 +1,6 @@
 # sqldb-rs
 
-[![Rust](https://github.com/humanbeeng/sqldb-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/humanbeeng/sqldb-rs/actions/workflows/rust.yml)
+[![build](https://github.com/humanbeeng/sqldb-rs/actions/workflows/build.yml/badge.svg)](https://github.com/humanbeeng/sqldb-rs/actions/workflows/build.yml)
 
 Memory backed SQL database. 
 
