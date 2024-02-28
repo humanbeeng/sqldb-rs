@@ -1,5 +1,6 @@
 mod ast;
 mod lexer;
+mod mem_backend;
 mod parser;
 use parser::parse;
 
