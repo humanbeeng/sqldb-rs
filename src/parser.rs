@@ -1,6 +1,6 @@
 use std::vec;
 
-use crate::ast::{ColDefinition, Expression, ExpressionKind};
+use crate::ast::{ColDefinition, Create, Expression, ExpressionKind, Insert, Select};
 use crate::lexer::{Keyword, Location, Symbol, TokenKind};
 use crate::{ast::Ast, lexer::lex};
 use crate::{ast::Statement, lexer::Token};
@@ -70,7 +70,12 @@ fn parse_statement(
 ) -> Result<(Statement, usize), ()> {
     match parse_select(&tokens, cursor_in, &delimiter) {
         Ok((select, new_cursor)) => {
-            return Ok((select, new_cursor));
+            let stmt = Statement {
+                select: Some(select),
+                create: None,
+                insert: None,
+            };
+            return Ok((stmt, new_cursor));
         }
         Err(_) => {}
     };
@@ -193,7 +198,7 @@ fn parse_select(
     tokens: &Vec<Token>,
     cursor_in: usize,
     delimiter: &Token,
-) -> Result<(Statement, usize), ()> {
+) -> Result<(Select, usize), ()> {
     let mut cursor = cursor_in;
 
     if !expect_token(
@@ -241,7 +246,7 @@ fn parse_select(
             }
         };
         cursor = new_cursor;
-        let select = Statement::Select {
+        let select = Select {
             from: from_token,
             items: expressions,
         };
@@ -249,7 +254,7 @@ fn parse_select(
         return Ok((select, cursor));
     }
     Ok((
-        Statement::Select {
+        Select {
             from: Token::nil(),
             items: expressions,
         },
@@ -358,8 +363,13 @@ fn parse_insert(
         return Err(());
     }
     cursor += 1;
+    let stmt = Statement {
+        select: None,
+        insert: Some(Insert { table, values }),
+        create: None,
+    };
 
-    Ok((Statement::Insert { table, values }, cursor))
+    Ok((stmt, cursor))
 }
 
 fn parse_create(
@@ -450,8 +460,12 @@ fn parse_create(
     }
     cursor += 1;
 
-    let create = Statement::Create { name: table, cols };
-    Ok((create, cursor))
+    let stmt = Statement {
+        create: Some(Create { name: table, cols }),
+        select: None,
+        insert: None,
+    };
+    Ok((stmt, cursor))
 }
 
 fn parse_column_defs(
