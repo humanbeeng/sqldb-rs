@@ -1,6 +1,8 @@
 use std::vec;
 
-use crate::ast::{ColDefinition, Create, Expression, ExpressionKind, Insert, Select};
+use crate::ast::{
+    ColDefinition, Create, Expression, ExpressionKind, Insert, Select, StatementKind,
+};
 use crate::lexer::{Keyword, Location, Symbol, TokenKind};
 use crate::{ast::Ast, lexer::lex};
 use crate::{ast::Statement, lexer::Token};
@@ -74,6 +76,7 @@ fn parse_statement(
                 select: Some(select),
                 create: None,
                 insert: None,
+                kind: StatementKind::Select,
             };
             return Ok((stmt, new_cursor));
         }
@@ -81,8 +84,8 @@ fn parse_statement(
     };
 
     match parse_insert(&tokens, cursor_in, &delimiter) {
-        Ok((select, new_cursor)) => {
-            return Ok((select, new_cursor));
+        Ok((insert, new_cursor)) => {
+            return Ok((insert, new_cursor));
         }
         Err(_) => {}
     }
@@ -367,6 +370,7 @@ fn parse_insert(
         select: None,
         insert: Some(Insert { table, values }),
         create: None,
+        kind: StatementKind::Insert,
     };
 
     Ok((stmt, cursor))
@@ -464,6 +468,7 @@ fn parse_create(
         create: Some(Create { name: table, cols }),
         select: None,
         insert: None,
+        kind: StatementKind::Create,
     };
     Ok((stmt, cursor))
 }

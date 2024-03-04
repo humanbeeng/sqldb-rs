@@ -10,6 +10,7 @@ use crate::{
     lexer::{Keyword, Token, TokenKind},
 };
 
+#[derive(Debug, Clone)]
 pub enum ColumnType {
     TextType,
     IntType,
@@ -44,7 +45,7 @@ impl fmt::Display for SQLError {
 pub trait Backend {
     fn create(&mut self, create: Create) -> Result<(), SQLError>;
     fn insert(&mut self, insert: Insert) -> Result<(), SQLError>;
-    fn select(&self, select: Select) -> Result<(), SQLError>;
+    fn select(&self, select: Select) -> Result<Results, SQLError>;
 }
 
 pub struct MemoryBackend {
@@ -99,14 +100,60 @@ impl Backend for MemoryBackend {
         Ok(())
     }
 
-    fn select(&self, select: Select) -> Result<(), SQLError> {
+    fn select(&self, select: Select) -> Result<Results, SQLError> {
         if !self.tables.contains_key(&select.from.literal) {
             return Err(SQLError::TableDoesNotExist(select.from.literal));
         }
 
+        let mut columns: Vec<Column> = Vec::new();
+        let mut rows = Vec::new();
+
         let table = self.tables.get(&select.from.literal).unwrap();
-        for r in table.rows {}
-        Ok(())
+
+        for (i, row) in table.rows.iter().enumerate() {
+            let mut result = Vec::new();
+            let is_first_row = i == 0;
+
+            for exp in &select.items {
+                if exp.kind != ExpressionKind::Literal {
+                    println!("Skipping non literal expressions");
+                    continue;
+                }
+
+                let lit = &exp.literal;
+
+                if lit.token_kind == TokenKind::Identifier {
+                    let mut found = false;
+
+                    for (j, table_col) in table.columns.iter().enumerate() {
+                        if table_col == &lit.literal {
+                            if is_first_row {
+                                columns.push(Column {
+                                    col_type: table.column_types.get(j).to_owned().unwrap().clone(),
+                                    col_name: lit.literal.clone(),
+                                });
+                            }
+
+                            result.push(row[j].clone());
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if !found {
+                        return Err(SQLError::ColumnDoesNotExist(lit.literal.clone()));
+                    }
+
+                    continue;
+                }
+
+                return Err(SQLError::ColumnDoesNotExist(lit.literal.clone()));
+            }
+
+            rows.push(result);
+        }
+
+        Ok(Results { rows, columns })
     }
 }
 

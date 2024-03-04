@@ -11,6 +11,14 @@ pub struct Statement {
     pub create: Option<Create>,
     pub insert: Option<Insert>,
     pub select: Option<Select>,
+    pub kind: StatementKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StatementKind {
+    Create,
+    Insert,
+    Select,
 }
 
 #[derive(Debug)]
