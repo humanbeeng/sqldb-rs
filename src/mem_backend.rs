@@ -1,13 +1,12 @@
 use core::fmt;
 use std::{
-    collections::{hash_map, HashMap},
-    fmt::write,
+    collections::HashMap,
     io::{Cursor, Read},
 };
 
 use crate::{
-    ast::{Create, ExpressionKind, Insert, Select, Statement},
-    lexer::{Keyword, Token, TokenKind},
+    ast::{Create, ExpressionKind, Insert, Select},
+    lexer::{Token, TokenKind},
 };
 
 #[derive(Debug, Clone)]
@@ -18,8 +17,8 @@ pub enum ColumnType {
 
 pub enum SQLError {
     TableDoesNotExist(String),
+    TableAlreadyExists(String),
     ColumnDoesNotExist(String),
-    InvalidSelectItem(String),
     InvalidDataType(String),
     MissingValues,
 }
@@ -30,10 +29,10 @@ impl fmt::Display for SQLError {
             SQLError::TableDoesNotExist(table_name) => {
                 write!(f, "Table does not exists: {}", table_name)
             }
-            SQLError::InvalidDataType(data_type) => write!(f, "Invalid data type: {}", data_type),
-            SQLError::InvalidSelectItem(select_item) => {
-                write!(f, "Invalid select item: {}", select_item)
+            SQLError::TableAlreadyExists(table_name) => {
+                write!(f, "Table already exists: {}", table_name)
             }
+            SQLError::InvalidDataType(data_type) => write!(f, "Invalid data type: {}", data_type),
             SQLError::MissingValues => write!(f, "Missing values"),
             SQLError::ColumnDoesNotExist(col_name) => {
                 write!(f, "Column does not exists: {}", col_name)
@@ -43,9 +42,9 @@ impl fmt::Display for SQLError {
 }
 
 pub trait Backend {
-    fn create(&mut self, create: Create) -> Result<(), SQLError>;
-    fn insert(&mut self, insert: Insert) -> Result<(), SQLError>;
-    fn select(&self, select: Select) -> Result<Results, SQLError>;
+    fn create(&mut self, create: &Create) -> Result<(), SQLError>;
+    fn insert(&mut self, insert: &Insert) -> Result<(), SQLError>;
+    fn select(&self, select: &Select) -> Result<Results, SQLError>;
 }
 
 pub struct MemoryBackend {
@@ -60,10 +59,13 @@ impl MemoryBackend {
 }
 
 impl Backend for MemoryBackend {
-    fn create(&mut self, create: Create) -> Result<(), SQLError> {
+    fn create(&mut self, create: &Create) -> Result<(), SQLError> {
+        if self.tables.contains_key(&create.name.literal) {
+            return Err(SQLError::TableAlreadyExists(create.name.literal.clone()));
+        }
         let mut table = Table::new();
-        table.name = create.name.literal;
-        for col in create.cols {
+        table.name = create.name.literal.clone();
+        for col in create.cols.clone() {
             table.columns.push(col.name.literal);
             match col.data_type.literal.as_str() {
                 "int" => table.column_types.push(ColumnType::IntType),
@@ -76,9 +78,9 @@ impl Backend for MemoryBackend {
         Ok(())
     }
 
-    fn insert(&mut self, insert: Insert) -> Result<(), SQLError> {
+    fn insert(&mut self, insert: &Insert) -> Result<(), SQLError> {
         if !self.tables.contains_key(&insert.table.literal) {
-            return Err(SQLError::TableDoesNotExist(insert.table.literal));
+            return Err(SQLError::TableDoesNotExist(insert.table.literal.clone()));
         }
 
         let table = self.tables.get_mut(&insert.table.literal).unwrap();
@@ -88,7 +90,7 @@ impl Backend for MemoryBackend {
             return Err(SQLError::MissingValues);
         }
 
-        for e in insert.values {
+        for e in insert.values.clone() {
             if e.kind != ExpressionKind::Literal {
                 println!("Skipping non literal");
                 continue;
@@ -100,9 +102,9 @@ impl Backend for MemoryBackend {
         Ok(())
     }
 
-    fn select(&self, select: Select) -> Result<Results, SQLError> {
+    fn select(&self, select: &Select) -> Result<Results, SQLError> {
         if !self.tables.contains_key(&select.from.literal) {
-            return Err(SQLError::TableDoesNotExist(select.from.literal));
+            return Err(SQLError::TableDoesNotExist(select.from.literal.clone()));
         }
 
         let mut columns: Vec<Column> = Vec::new();
@@ -157,17 +159,18 @@ impl Backend for MemoryBackend {
     }
 }
 
-trait Cell {
+pub trait Cell {
     fn as_text(&self) -> String;
     fn as_int(&self) -> i32;
 }
 
+#[derive(Debug)]
 pub struct Column {
-    col_type: ColumnType,
-    col_name: String,
+    pub col_type: ColumnType,
+    pub col_name: String,
 }
 
-type MemCell = Vec<u8>;
+pub type MemCell = Vec<u8>;
 
 impl Cell for MemCell {
     fn as_int(&self) -> i32 {
@@ -207,8 +210,12 @@ impl Table {
 }
 
 fn token_to_cell(token: Token) -> MemCell {
-    if token.token_kind == TokenKind::Numeric || token.token_kind == TokenKind::String {
+    if token.token_kind == TokenKind::String {
         return token.literal.as_bytes().to_vec();
+    }
+    if token.token_kind == TokenKind::Numeric {
+        let num: i32 = token.literal.parse().unwrap();
+        return num.to_le_bytes().to_vec();
     }
     String::new().as_bytes().to_vec()
 }

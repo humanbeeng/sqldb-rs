@@ -6,7 +6,7 @@ pub struct Ast {
     pub statements: Vec<Statement>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Statement {
     pub create: Option<Create>,
     pub insert: Option<Insert>,
@@ -21,37 +21,37 @@ pub enum StatementKind {
     Select,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Insert {
     pub table: Token,
     pub values: Vec<Expression>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Select {
     pub from: Token,
     pub items: Vec<Expression>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Create {
     pub name: Token,
     pub cols: Vec<ColDefinition>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ColDefinition {
     pub name: Token,
     pub data_type: Token,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expression {
     pub literal: Token,
     pub kind: ExpressionKind,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionKind {
     Literal,
 }

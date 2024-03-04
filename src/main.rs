@@ -2,16 +2,29 @@ mod ast;
 mod lexer;
 mod mem_backend;
 mod parser;
-use core::panic;
 use std::io::{self, Write};
 
+use mem_backend::MemCell;
 use mem_backend::MemoryBackend;
 
-use crate::{ast::StatementKind, mem_backend::Backend};
+use crate::mem_backend::Cell;
+use crate::{
+    ast::StatementKind,
+    mem_backend::{Backend, ColumnType},
+};
 
 fn main() {
     let mut mb = MemoryBackend::new();
-    println!("sqldb-rs online");
+    println!(
+        "
+███████╗ ██████╗ ██╗     ██████╗ ██████╗       ██████╗ ███████╗
+██╔════╝██╔═══██╗██║     ██╔══██╗██╔══██╗      ██╔══██╗██╔════╝
+███████╗██║   ██║██║     ██║  ██║██████╔╝█████╗██████╔╝███████╗
+╚════██║██║▄▄ ██║██║     ██║  ██║██╔══██╗╚════╝██╔══██╗╚════██║
+███████║╚██████╔╝███████╗██████╔╝██████╔╝      ██║  ██║███████║
+╚══════╝ ╚══▀▀═╝ ╚══════╝╚═════╝ ╚═════╝       ╚═╝  ╚═╝╚══════╝
+"
+    );
 
     loop {
         print!(">> ");
@@ -27,30 +40,61 @@ fn main() {
         let ast = match parser::parse(input) {
             Ok(ast) => ast,
             Err(e) => {
-                panic!("{}", e);
+                println!("{}", e);
+                continue;
             }
         };
 
         for statement in ast.statements {
             match statement.kind {
                 StatementKind::Create => {
-                    if let Err(e) = mb.create(statement.create.unwrap()) {
-                        panic!("{}", e);
+                    if let Err(e) = mb.create(&statement.create.as_ref().unwrap().clone()) {
+                        println!("{}", e);
+                        continue;
                     }
-                    println!("Ok");
+                    let table_name = &statement.create.unwrap().name.literal.clone();
+                    println!("{} created", table_name);
                 }
                 StatementKind::Insert => {
-                    if let Err(e) = mb.insert(statement.insert.unwrap()) {
-                        panic!("{}", e);
+                    if let Err(e) = mb.insert(&statement.insert.unwrap()) {
+                        println!("{}", e);
+                        continue;
                     }
                     println!("Ok");
                 }
                 StatementKind::Select => {
-                    if let results = match mb.select(statement.select.unwrap()) {
+                    let results = match mb.select(&statement.select.unwrap()) {
                         Ok(results) => results,
-                        Err(e) => panic!{"{}", e}
-                    } else {
-                        println!("hello");
+                        Err(e) => {
+                            println! {"{}", e};
+                            continue;
+                        }
+                    };
+                    for col in &results.columns {
+                        print!("| {}", col.col_name);
+                    }
+                    print!(" |");
+                    println!("");
+                    for _ in 0..20 {
+                        print!("-");
+                    }
+                    println!("");
+
+                    for row in results.rows {
+                        for (i, cell) in row.into_iter().enumerate() {
+                            let typ = &results.columns.get(i).unwrap().col_type;
+                            match *typ {
+                                ColumnType::IntType => {
+                                    let mc: MemCell = cell;
+                                    print!("{} | ", mc.as_int());
+                                }
+                                ColumnType::TextType => {
+                                    let mc: MemCell = cell;
+                                    print!("{} | ", mc.as_text());
+                                }
+                            }
+                        }
+                        println!("");
                     }
                 }
             }

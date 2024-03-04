@@ -83,14 +83,14 @@ fn parse_statement(
         Err(_) => {}
     };
 
-    match parse_insert(&tokens, cursor_in, &delimiter) {
+    match parse_insert(&tokens, cursor_in) {
         Ok((insert, new_cursor)) => {
             return Ok((insert, new_cursor));
         }
         Err(_) => {}
     }
 
-    match parse_create(&tokens, cursor_in, &delimiter) {
+    match parse_create(&tokens, cursor_in) {
         Ok((select, new_cursor)) => {
             return Ok((select, new_cursor));
         }
@@ -265,11 +265,7 @@ fn parse_select(
     ))
 }
 
-fn parse_insert(
-    tokens: &Vec<Token>,
-    cursor_in: usize,
-    delimiter: &Token,
-) -> Result<(Statement, usize), ()> {
+fn parse_insert(tokens: &Vec<Token>, cursor_in: usize) -> Result<(Statement, usize), ()> {
     let mut cursor = cursor_in;
 
     if !expect_token(
@@ -376,11 +372,7 @@ fn parse_insert(
     Ok((stmt, cursor))
 }
 
-fn parse_create(
-    tokens: &Vec<Token>,
-    cursor_in: usize,
-    delimiter: &Token,
-) -> Result<(Statement, usize), ()> {
+fn parse_create(tokens: &Vec<Token>, cursor_in: usize) -> Result<(Statement, usize), ()> {
     let mut cursor = cursor_in;
 
     if !expect_token(
@@ -562,9 +554,4 @@ fn expect_token(tokens: &Vec<Token>, cursor: usize, token: Token) -> bool {
     } else {
         false
     }
-}
-
-#[test]
-fn test_parse() {
-    if let Ok(tokens) = parse(String::from("select * from table")) {}
 }
