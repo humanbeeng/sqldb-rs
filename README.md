@@ -19,4 +19,5 @@ Supports.
   - [x] Select
   - [x] Insert
   - [x] Create
-- [ ] In memory backend
+- [x] In memory backend
+- [x] REPL
